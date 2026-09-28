@@ -73,15 +73,27 @@ class BlockLinear(nnx.Module):
             in_axes=0
         )
         self.mlps =_stack_linear(jax.random.split(rngs(), groups))
-        self.norm = NORMS['rms'](self.output_dim, rngs=rngs)
+        # self.norm = NORMS['rms'](self.output_dim, rngs=rngs)
+        self.norm_layer = NORMS['rms'](self.output_dim, rngs=rngs)
     
     def __call__(self, x):
+        # batch_dims = x.shape[:-2]
         batch_dims = x.shape[:-2]
-        x = nnx.vmap(lambda l, x: l(x), in_axes=(0, 1))(self.mlps, x) #(B, )
-        x = x.swapaxes(0,1)
+        x = x.reshape(-1, self.groups, self.input_dim)
+        # new: pure jax grouped linear
+        w = self.mlps.kernel.value
+        x = jnp.einsum('bgi,gio->bgo', x, w)
+        if getattr(self.mlps, 'bias', None) is not None:
+            x = x + self.mlps.bias.value
+        # x = nnx.vmap(lambda l, x: l(x), in_axes=(0, 1))(self.mlps, x) #(B, )
+        # x = self.norm(x) if self.norm else x
+        # x = x.swapaxes(0,1)
         x = x.reshape(*batch_dims, -1)
-        x = self.norm(x) if self.norm else x
-        return ACTIVATIONS[self.act](x)
+        x = self.norm_layer(x) if self.norm else x
+        if self.act and self.act.lower() != 'none':
+            x = getattr(nnx, self.act)(x)
+        # return ACTIVATIONS[self.act](x)
+        return x
     
 
 class BlockGRUCell(nnx.Module):
@@ -94,7 +106,7 @@ class BlockGRUCell(nnx.Module):
             **kwargs
         ):        
         self.groups = groups
-        self.input_dim = input_dim,
+        self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         
         self.linear_in = BlockLinear(
@@ -190,7 +202,8 @@ class NoisyMLP(nnx.Module):
             
         layers.append(NoisyLinear(mlp_layers[-1], output_dim, sigma_zero=sigma_zero, rngs=rngs))
         layers.append(ACTIVATIONS[outact])
-        self.layers = layers
+        # self.layers = layers
+        self.layers = nnx.List(layers)
 
     def __call__(self, x : jnp.ndarray, rng=None, mode='train'):
         for l in self.layers:
@@ -232,7 +245,8 @@ class MLP(nnx.Module):
         else:
             layers.append(nnx.Linear(mlp_layers[-1], output_dim, rngs=rngs))
         layers.append(ACTIVATIONS[outact])
-        self.layers = layers
+        # self.layers = layers
+        self.layers = nnx.List(layers)
 
     def __call__(self, x : jnp.ndarray):
         for l in self.layers:

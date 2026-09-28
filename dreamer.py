@@ -4,6 +4,12 @@
     date: October 2024
     modified: October 2025
 '''
+import os
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform" 
+os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"
+
+
 from functools import partial
 from typing import Tuple
 from collections.abc import Callable
@@ -12,12 +18,18 @@ import argparse
 
 import jax
 import jax.numpy as jnp
+if not hasattr(jax, 'tree_map'):
+    import jax.tree_util
+    jax.tree_map = jax.tree_util.tree_map
 import chex
 import optax
 import flax.nnx as nnx
 
 import flashbax as fbx
-import gymnax
+# import gymnax
+import jaxatari
+from typing import Any
+# import ale_py       # only if needed to modify core Atari-specific settings
 
 
 from tqdm import tqdm
@@ -113,8 +125,9 @@ class EnvConfig:
     env_step: Callable
     n_actions: int
     n_envs: int
-    base_env : gymnax.environments.environment.Environment
-    env_params : gymnax.EnvParams
+    # base_env : gymnax.environments.environment.Environment
+    # env_params : gymnax.EnvParams
+    base_env : Any   # Let this accept the JAXtari env object
 
 class RSSM(nnx.Module):
     def __init__(
@@ -451,6 +464,7 @@ def get_dreamer_learn_fn(
         update_ratio, # number of updates per env step,
         training_starts
     ):
+    
     def _train(state, i):
         # rollout the envs
         agent, env_state, rng, last_step = state
@@ -944,11 +958,12 @@ def get_eval_fn(
                 episode_stats.is_first,
                 rng_a,
             )
-            obs, env_state, reward, done, info = env_config.base_env.step(
+            # obs, env_state, reward, done, info = env_config.base_env.step(
+            obs, env_state, reward, done, info = env_config.env_step(
                 rng_s,
                 env_state,
-                action,
-                env_config.env_params
+                action
+                # env_config.env_params
             )
             episode_stats = episode_stats.replace(
                 last_obs=obs,
@@ -964,7 +979,8 @@ def get_eval_fn(
         # initialize state
         rng, rng_s = jax.random.split(rng)
 
-        init_obs, env_state = env_config.base_env.reset(rng_s, env_config.env_params)
+        # init_obs, env_state = env_config.base_env.reset(rng_s, env_config.env_params)
+        init_obs, env_state = env_config.env_reset(rng_s)
         ep_stats = EvaluationState(
             last_obs=init_obs,
             action=0,
@@ -1084,11 +1100,12 @@ def run(config, env_config):
 
 if __name__=="__main__":
     from utils.oc_parser import parse_oc_args
-    from gymnax_wrappers import LogWrapper, DreamerWrapper
+    # from gymnax_wrappers import LogWrapper, DreamerWrapper
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='./dreamer.yaml')
-    parser.add_argument('--env', type=str, default='CartPole-v1')
+    # parser.add_argument('--env', type=str, default='CartPole-v1')
+    parser.add_argument('--env', type=str, default='pong')
     args, extra_args = parser.parse_known_args()
     config = oc.load(args.config)
     cli_args = parse_oc_args(extra_args)
@@ -1096,31 +1113,163 @@ if __name__=="__main__":
 
     ### create env
 
-    try:
-        base_env, env_params = gymnax.make(args.env) # this env autoresets
-        env = LogWrapper(DreamerWrapper(base_env))
-        rng = jax.random.key(0)
-        obs, env_state = env.reset(rng, env_params)
-        action = env.action_space(env_params).sample(rng)
-        obs, env_state, reward, done, info = env.step(rng, env_state, action, env_params)
+    # try:
+    #     # base_env, env_params = gymnax.make(args.env) # this env autoresets
+    #     # env = LogWrapper(DreamerWrapper(base_env))
+    #     env = jaxatari.make(args.env)
+    #     # env_params = env.default_params     # only if JAXtari requires params
+    #     rng = jax.random.key(0)
+    #     # obs, env_state = env.reset(rng, env_params)
+    #     obs, env_state = env.reset(rng)
 
+    #     # we may have to hardcode the sample or use jax.random.randint because we don't have action_space like gymnax
+    #     # action = env.action_space(env_params).sample(rng)
+    #     n_actions = env.action_space().n
+    #     action = jax.random.randint(rng, (), 0, n_actions)
+    #     # obs, env_state, reward, done, info = env.step(rng, env_state, action, env_params)
+    #     # JAXAtari outputs terminated and truncated instead of a single done flag, also takes self, state, action. so no rng here
+    #     obs, env_state, reward, done, info = env.step(env_state, action)
+        
+
+    #     # Compatibility wrapper for dreamer loop
+    #     def jaxatari_step(step_rng, state, step_action):
+    #         o, s, r, d, i = env.step(state, step_action)
+            
+    #         return o, s, r, d, i
+        
+    #     env_config = EnvConfig(
+    #         obs=obs,
+    #         action=action,
+    #         done=done,
+    #         reward=reward.astype(jnp.float32),
+    #         # n_actions=base_env.action_space(env_params).n,
+    #         n_actions=n_actions,
+    #         # env_reset=partial(env.reset, params=env_params),
+    #         env_reset=env.reset,
+    #         # env_step=partial(env.step, params=env_params),
+    #         env_step=jaxatari_step,
+    #         n_envs=config.n_envs,
+    #         # base_env=base_env,
+    #         base_env=env,
+    #         # env_params=env_params
+    #     )
+
+
+
+    # except Exception as e:
+    #     print(f"Error creating env {args.env}: {e}")
+    #     exit(1)
+
+    ### create env
+    try:
+        
+        from jaxatari.wrappers import AtariWrapper, PixelObsWrapper
+        
+        base_env = jaxatari.make(args.env)
+        
+        env_atari = AtariWrapper(base_env)
+        
+        env = PixelObsWrapper(env_atari)
+        
+        rng = jax.random.key(0)
+        
+        def process_obs(raw_obs):
+            
+            img = raw_obs.astype(jnp.float32)
+            
+            
+            if len(img.shape) == 4:
+                img = img[-1] 
+                
+            # Convert RGB to Grayscale
+            if len(img.shape) == 3 and img.shape[-1] == 3:
+                img = jnp.dot(img, jnp.array([0.2989, 0.5870, 0.1140]))
+                
+            # Force the array to strictly 2D for the resize operation
+            if len(img.shape) == 3 and img.shape[-1] == 1:
+                img = img.squeeze(-1)
+                
+            # Resize strictly to 64x64 (DreamerV3 paper specification)
+            img = jax.image.resize(img, (64, 64), method='bilinear')
+            
+            # Return with the channel dimension: (64, 64, 1)
+            return jnp.expand_dims(img, axis=-1)
+
+        def jaxatari_reset(reset_rng):
+            # Wrappers expect the RNG key
+            o, s = env.reset(reset_rng)
+            return process_obs(o), s
+
+        def jaxatari_step(step_rng, state, step_action):
+
+            def scan_fn(carry, _):
+                curr_state, reward_sum, done_flag = carry
+
+                # Take a single step
+                o, next_state, r, term, trunc, i = env.step(curr_state, step_action)
+                d = jnp.logical_or(term, trunc)
+                
+                # Only add the reward if the episode didn't end in a previous frame
+                valid = jnp.logical_not(done_flag)
+                r = jnp.where(valid, r, 0.0)
+                
+                next_done = jnp.logical_or(done_flag, d)
+                next_carry = (next_state, reward_sum + r, next_done)
+                return next_carry, o
+
+            # Initialize our loop state: (env_state, total_reward, done_status)
+            carry = (state, jnp.float32(0.0), jnp.bool_(False))
+
+            # Execute the frame skip using jax.lax.scan and YAML config
+            (final_state, total_reward, final_done), obs_seq = jax.lax.scan(
+                scan_fn, carry, None, length=config.params.action_repeat
+            )
+            
+            # Grab the very last frame from the sequence for the AI to look at
+            final_obs = jax.tree_map(lambda x: x[-1], obs_seq)
+            
+            info_dict = {
+                "returned_episode_returns": jnp.zeros_like(total_reward),
+                "returned_episode": jnp.asarray(final_done, dtype=jnp.float32)
+            }
+            
+            # Return the processed observation and accumulated reward
+            return process_obs(final_obs), final_state, total_reward, final_done, info_dict
+           
+            # o, s, r, term, trunc, i = env.step(state, step_action)
+            # d = jnp.logical_or(term, trunc)
+            # info_dict = {
+            #     "returned_episode_returns": jnp.zeros_like(r),
+            #     "returned_episode": jnp.asarray(d, dtype=jnp.float32)
+            # }
+            # return process_obs(o), s, r, d, info_dict
+
+        # Extract Dummy Shapes using the wrappers
+        obs, env_state = jaxatari_reset(rng)
+        
+        n_actions = env.action_space().n
+        config.params.n_actions = n_actions
+        action = jax.random.randint(rng, (), 0, n_actions)
+        
+        obs, env_state, reward, done, info = jaxatari_step(rng, env_state, action)
+
+        # Populate Config
         env_config = EnvConfig(
             obs=obs,
             action=action,
             done=done,
             reward=reward.astype(jnp.float32),
-            n_actions=base_env.action_space(env_params).n,
-            env_reset=partial(env.reset, params=env_params),
-            env_step=partial(env.step, params=env_params),
+            n_actions=n_actions,
+            env_reset=jaxatari_reset,
+            env_step=jaxatari_step,
             n_envs=config.n_envs,
-            base_env=base_env,
-            env_params=env_params
+            base_env=env
         )
 
-
-
     except Exception as e:
+        import traceback
         print(f"Error creating env {args.env}: {e}")
+        traceback.print_exc()
         exit(1)
 
     run(config, env_config)

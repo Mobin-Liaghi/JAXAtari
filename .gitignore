@@ -23,6 +23,8 @@ MANIFEST
 
 # Virtual environments
 venv/
+venv_cluster/
+venv_linux/
 env/
 ENV/
 env.bak/
@@ -52,6 +54,8 @@ rl_experiments/dreamerv3/results.jsonl
 rl_experiments/*/results.jsonl
 logs/
 wandb/
+
+
 
 # Jupyter Notebook
 .ipynb_checkpoints

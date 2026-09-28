@@ -1,7 +1,12 @@
 replay_buffer:
-  buffer_size: 5e5
-  batch_size: 16
+  # buffer_size: 5e5
+  # buffer_size: 5e4
+  buffer_size: 1e5
+  # batch_size: 16
+  batch_size: 8
+  # batch_size: 4
   batch_length: 64
+  # batch_length: 32
 
 rssm:
   hidden_dim: 256
@@ -10,7 +15,8 @@ rssm:
   memory_dim: ${eval:8*${rssm.hidden_dim}}
   state_dim: ${eval:${rssm.memory_dim}+${rssm.latent_classes}*${rssm.latent_categoricals}}
   n_actions: ${params.n_actions}
-  pixels: false
+  # pixels: false
+  pixels: true
   n_bins: ${params.n_bins}
   
   obs_embed:
@@ -129,16 +135,20 @@ actor_critic:
 
 seed: 0
 eval_every: 10000
+# eval_every: 100
 eval_n_episodes: 10
-eval_max_length: 1000
+# eval_max_length: 1000
+eval_max_length: 10000
 timesteps:  1e7
-n_envs: 16
+# timesteps:  1e5
+# n_envs: 16
+n_envs: 8
 outdir: rl_experiments/
 exp_id: dreamerv3
 
 params:
-  action_repeat: 1
-  n_actions: 2
+  action_repeat: 4
+  n_actions: 18
   rollout_length: 1
   replay_ratio: 32
   v_min: -20
