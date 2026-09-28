@@ -3,6 +3,7 @@
     author: Rafael Rodriguez-Sanchez
     date: October 2024
     modified: October 2025
+    https://github.com/rafarodsa/dreamer-v3-purejax
 '''
 import os
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
