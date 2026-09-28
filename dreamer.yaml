@@ -1,12 +1,7 @@
 replay_buffer:
-  # buffer_size: 5e5
-  # buffer_size: 5e4
   buffer_size: 1e5
-  # batch_size: 16
   batch_size: 8
-  # batch_size: 4
   batch_length: 64
-  # batch_length: 32
 
 rssm:
   hidden_dim: 256
@@ -15,7 +10,6 @@ rssm:
   memory_dim: ${eval:8*${rssm.hidden_dim}}
   state_dim: ${eval:${rssm.memory_dim}+${rssm.latent_classes}*${rssm.latent_categoricals}}
   n_actions: ${params.n_actions}
-  # pixels: false
   pixels: true
   n_bins: ${params.n_bins}
   
@@ -59,7 +53,6 @@ rssm:
     normalize: rms
     outact: none
     input_dim: ${eval:${rssm.memory_dim}+${rssm.hidden_dim}}
-    # input_dim: ${eval:4*${rssm.hidden_dim}}
     output_dim: ${eval:${rssm.latent_classes}*${rssm.latent_categoricals}}
 
   embed:
@@ -73,7 +66,6 @@ rssm:
   rnn:
     type: blockgru
     groups: 8
-    # type: gru
     input_dim: ${eval:3*${rssm.hidden_dim}}
     hidden_dim: ${rssm.memory_dim}
   
@@ -84,7 +76,6 @@ rssm:
     normalize: rms
     outact: none
     input_dim: ${rssm.memory_dim}
-    # input_dim: ${eval:3*${rssm.hidden_dim}}
     output_dim: ${eval:${rssm.latent_classes}*${rssm.latent_categoricals}}
 
   reward:
@@ -122,7 +113,6 @@ actor_critic:
     activation: silu
     normalize : rms
     outact: none
-    # zero_out_init : true
   critic:
     type: mlp
     hidden_dims: ["${actor_critic.hidden_dim}", "${actor_critic.hidden_dim}", "${actor_critic.hidden_dim}"]
@@ -135,13 +125,9 @@ actor_critic:
 
 seed: 0
 eval_every: 10000
-# eval_every: 100
 eval_n_episodes: 10
-# eval_max_length: 1000
 eval_max_length: 10000
 timesteps:  1e7
-# timesteps:  1e5
-# n_envs: 16
 n_envs: 8
 outdir: rl_experiments/
 exp_id: dreamerv3
