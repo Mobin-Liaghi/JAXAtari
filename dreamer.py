@@ -15,7 +15,6 @@ from typing import Tuple
 from collections.abc import Callable
 
 import argparse
-
 import jax
 import jax.numpy as jnp
 if not hasattr(jax, 'tree_map'):
@@ -24,22 +23,15 @@ if not hasattr(jax, 'tree_map'):
 import chex
 import optax
 import flax.nnx as nnx
-
 import flashbax as fbx
-# import gymnax
 import jaxatari
 from typing import Any
-# import ale_py       # only if needed to modify core Atari-specific settings
-
-
 from tqdm import tqdm
-
 from jaxmodels_nnx import build_model
 from utils.replayx import make_trajectory_buffer
 from utils.jaxutils import symlog, symexp, scale_by_momentum, inv_twohot
 from utils.jaxutils import twohot as base_twohot
 from utils.loggers import JSONLogger, MultiLogger
-
 from omegaconf import OmegaConf as oc
 from utils.printarr import printarr
 
@@ -1112,55 +1104,6 @@ if __name__=="__main__":
     config = oc.merge(config, cli_args)
 
     ### create env
-
-    # try:
-    #     # base_env, env_params = gymnax.make(args.env) # this env autoresets
-    #     # env = LogWrapper(DreamerWrapper(base_env))
-    #     env = jaxatari.make(args.env)
-    #     # env_params = env.default_params     # only if JAXtari requires params
-    #     rng = jax.random.key(0)
-    #     # obs, env_state = env.reset(rng, env_params)
-    #     obs, env_state = env.reset(rng)
-
-    #     # we may have to hardcode the sample or use jax.random.randint because we don't have action_space like gymnax
-    #     # action = env.action_space(env_params).sample(rng)
-    #     n_actions = env.action_space().n
-    #     action = jax.random.randint(rng, (), 0, n_actions)
-    #     # obs, env_state, reward, done, info = env.step(rng, env_state, action, env_params)
-    #     # JAXAtari outputs terminated and truncated instead of a single done flag, also takes self, state, action. so no rng here
-    #     obs, env_state, reward, done, info = env.step(env_state, action)
-        
-
-    #     # Compatibility wrapper for dreamer loop
-    #     def jaxatari_step(step_rng, state, step_action):
-    #         o, s, r, d, i = env.step(state, step_action)
-            
-    #         return o, s, r, d, i
-        
-    #     env_config = EnvConfig(
-    #         obs=obs,
-    #         action=action,
-    #         done=done,
-    #         reward=reward.astype(jnp.float32),
-    #         # n_actions=base_env.action_space(env_params).n,
-    #         n_actions=n_actions,
-    #         # env_reset=partial(env.reset, params=env_params),
-    #         env_reset=env.reset,
-    #         # env_step=partial(env.step, params=env_params),
-    #         env_step=jaxatari_step,
-    #         n_envs=config.n_envs,
-    #         # base_env=base_env,
-    #         base_env=env,
-    #         # env_params=env_params
-    #     )
-
-
-
-    # except Exception as e:
-    #     print(f"Error creating env {args.env}: {e}")
-    #     exit(1)
-
-    ### create env
     try:
         
         from jaxatari.wrappers import AtariWrapper, PixelObsWrapper
@@ -1235,15 +1178,7 @@ if __name__=="__main__":
             
             # Return the processed observation and accumulated reward
             return process_obs(final_obs), final_state, total_reward, final_done, info_dict
-           
-            # o, s, r, term, trunc, i = env.step(state, step_action)
-            # d = jnp.logical_or(term, trunc)
-            # info_dict = {
-            #     "returned_episode_returns": jnp.zeros_like(r),
-            #     "returned_episode": jnp.asarray(d, dtype=jnp.float32)
-            # }
-            # return process_obs(o), s, r, d, info_dict
-
+   
         # Extract Dummy Shapes using the wrappers
         obs, env_state = jaxatari_reset(rng)
         
